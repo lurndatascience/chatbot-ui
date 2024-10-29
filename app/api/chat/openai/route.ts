@@ -1,58 +1,62 @@
-import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers"
+import { getServerProfile } from "@/lib/server/server-chat-helpers"
 import { ChatSettings } from "@/types"
-import { OpenAIStream, StreamingTextResponse } from "ai"
+import { StreamingTextResponse } from "ai"
 import { ServerRuntime } from "next"
-import OpenAI from "openai"
-import { ChatCompletionCreateParamsBase } from "openai/resources/chat/completions.mjs"
+import { createClient } from "@/lib/supabase/middleware"
+import { NextRequest } from "next/server"
+import { NextResponse } from "next/server"
 
 export const runtime: ServerRuntime = "edge"
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const json = await request.json()
   const { chatSettings, messages } = json as {
     chatSettings: ChatSettings
     messages: any[]
   }
 
+  const { supabase, response } = createClient(request)
+
+  const session = await supabase.auth.getSession()
+  const { data: homeWorkspace, error } = await supabase
+    .from("workspaces")
+    .select("*")
+    .eq("user_id", session.data.session?.user.id)
+    .eq("is_home", true)
+    .single()
+
+  if (!homeWorkspace) {
+    throw new Error(error?.message)
+  }
+  console.log("homeWorkspace", homeWorkspace, homeWorkspace.id)
+
+  console.log("chat_completions", {
+    chatSettings,
+    messages,
+    homeWorkspaceId: homeWorkspace.id
+  })
+  const profile = await getServerProfile()
   try {
-    const profile = await getServerProfile()
+    const response = await fetch(
+      `${process.env.BACKEND_URL}/chat_completions`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ chatSettings, messages, homeWorkspace }) // Convert the data to JSON format
+      }
+    )
 
-    checkApiKey(profile.openai_api_key, "OpenAI")
-
-    const openai = new OpenAI({
-      apiKey: profile.openai_api_key || "",
-      organization: profile.openai_organization_id
-    })
-
-    const response = await openai.chat.completions.create({
-      model: chatSettings.model as ChatCompletionCreateParamsBase["model"],
-      messages: messages as ChatCompletionCreateParamsBase["messages"],
-      temperature: chatSettings.temperature,
-      max_tokens:
-        chatSettings.model === "gpt-4-vision-preview" ||
-        chatSettings.model === "gpt-4o"
-          ? 4096
-          : null, // TODO: Fix
-      stream: true
-    })
-
-    const stream = OpenAIStream(response)
-
-    return new StreamingTextResponse(stream)
-  } catch (error: any) {
-    let errorMessage = error.message || "An unexpected error occurred"
-    const errorCode = error.status || 500
-
-    if (errorMessage.toLowerCase().includes("api key not found")) {
-      errorMessage =
-        "OpenAI API Key not found. Please set it in your profile settings."
-    } else if (errorMessage.toLowerCase().includes("incorrect api key")) {
-      errorMessage =
-        "OpenAI API Key is incorrect. Please fix it in your profile settings."
+    if (!response.ok) {
+      throw new Error("Network response was not ok")
     }
 
-    return new Response(JSON.stringify({ message: errorMessage }), {
-      status: errorCode
-    })
+    const responseData = await response.json() // Parse the JSON response
+    console.log("Success:", responseData)
+    const output = responseData.res
+    return new NextResponse(output, { status: 200 }) //new StreamingTextResponse(responseData)
+  } catch (error) {
+    console.error("Error:", error)
   }
 }

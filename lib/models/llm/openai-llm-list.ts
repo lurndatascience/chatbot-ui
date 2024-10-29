@@ -21,7 +21,7 @@ const GPT4o: LLM = {
 // GPT-4 Turbo (UPDATED 1/25/24)
 const GPT4Turbo: LLM = {
   modelId: "gpt-4-turbo-preview",
-  modelName: "GPT-4 Turbo",
+  modelName: "FlexiBot Assistant",
   provider: "openai",
   hostedId: "gpt-4-turbo-preview",
   platformLink: OPENAI_PLATORM_LINK,

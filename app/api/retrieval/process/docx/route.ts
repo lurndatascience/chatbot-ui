@@ -1,4 +1,3 @@
-import { generateLocalEmbedding } from "@/lib/generate-local-embedding"
 import { processDocX } from "@/lib/retrieval/processing"
 import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers"
 import { Database } from "@/supabase/types"
@@ -6,13 +5,14 @@ import { FileItemChunk } from "@/types"
 import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
 import OpenAI from "openai"
+import { DefaultAzureCredential } from "@azure/identity"
 
 export async function POST(req: Request) {
   const json = await req.json()
   const { text, fileId, embeddingsProvider, fileExtension } = json as {
     text: string
     fileId: string
-    embeddingsProvider: "openai" | "local"
+    embeddingsProvider: "openai" // Only OpenAI is supported now
     fileExtension: string
   }
 
@@ -45,14 +45,22 @@ export async function POST(req: Request) {
     }
 
     let embeddings: any = []
-
     let openai
+
+    // Get Azure AD Token
+    const credential = new DefaultAzureCredential()
+    const tokenResponse = await credential.getToken(
+      "https://cognitiveservices.azure.com/.default"
+    )
+
     if (profile.use_azure_openai) {
       openai = new OpenAI({
-        apiKey: profile.azure_openai_api_key || "",
+        apiKey: profile.azure_openai_api_key || "", // Keep for fallback if needed
         baseURL: `${profile.azure_openai_endpoint}/openai/deployments/${profile.azure_openai_embeddings_id}`,
         defaultQuery: { "api-version": "2023-12-01-preview" },
-        defaultHeaders: { "api-key": profile.azure_openai_api_key }
+        defaultHeaders: {
+          Authorization: `Bearer ${tokenResponse.token}` // Use the Azure AD token
+        }
       })
     } else {
       openai = new OpenAI({
@@ -67,20 +75,7 @@ export async function POST(req: Request) {
         input: chunks.map(chunk => chunk.content)
       })
 
-      embeddings = response.data.map((item: any) => {
-        return item.embedding
-      })
-    } else if (embeddingsProvider === "local") {
-      const embeddingPromises = chunks.map(async chunk => {
-        try {
-          return await generateLocalEmbedding(chunk.content)
-        } catch (error) {
-          console.error(`Error generating embedding for chunk: ${chunk}`, error)
-          return null
-        }
-      })
-
-      embeddings = await Promise.all(embeddingPromises)
+      embeddings = response.data.map((item: any) => item.embedding)
     }
 
     const file_items = chunks.map((chunk, index) => ({
@@ -88,14 +83,8 @@ export async function POST(req: Request) {
       user_id: profile.user_id,
       content: chunk.content,
       tokens: chunk.tokens,
-      openai_embedding:
-        embeddingsProvider === "openai"
-          ? ((embeddings[index] || null) as any)
-          : null,
-      local_embedding:
-        embeddingsProvider === "local"
-          ? ((embeddings[index] || null) as any)
-          : null
+      openai_embedding: embeddings[index] || null,
+      local_embedding: null // Removed since local embedding is no longer used
     }))
 
     await supabaseAdmin.from("file_items").upsert(file_items)

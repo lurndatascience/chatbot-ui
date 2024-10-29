@@ -22,7 +22,7 @@ Be back soon.
 
 Use Chatbot UI without having to host it yourself!
 
-Find the official hosted version of Chatbot UI [here](https://chatbotui.com).
+Find the official hosted version of Chatbot UI [here](https://lurndatascience.github.io/flexibot-docs/).
 
 ## Sponsor
 

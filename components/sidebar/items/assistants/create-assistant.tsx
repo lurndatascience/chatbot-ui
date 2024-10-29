@@ -190,14 +190,15 @@ export const CreateAssistant: FC<CreateAssistantProps> = ({
           </div>
 
           {checkIfModelIsToolCompatible() ? (
-            <div className="space-y-1">
-              <Label>Tools</Label>
+            // <div className="space-y-1">
+            //   <Label>Tools</Label>
 
-              <AssistantToolSelect
-                selectedAssistantTools={selectedAssistantToolItems}
-                onAssistantToolsSelect={handleToolSelect}
-              />
-            </div>
+            //   <AssistantToolSelect
+            //     selectedAssistantTools={selectedAssistantToolItems}
+            //     onAssistantToolsSelect={handleToolSelect}
+            //   />
+            // </div>
+            <div className="pt-1 font-semibold"></div>
           ) : (
             <div className="pt-1 font-semibold">
               Model is not compatible with tools.

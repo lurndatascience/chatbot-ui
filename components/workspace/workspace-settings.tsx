@@ -193,15 +193,15 @@ export const WorkspaceSettings: FC<WorkspaceSettingsProps> = ({}) => {
 
             {selectedWorkspace?.is_home && (
               <div className="text-sm font-light">
-                This is your home workspace for personal use.
+                You can rename and customise workspace.
               </div>
             )}
           </SheetHeader>
 
           <Tabs defaultValue="main">
-            <TabsList className="mt-4 grid w-full grid-cols-2">
+            <TabsList className="mt-4 grid w-full grid-cols-1">
               <TabsTrigger value="main">Main</TabsTrigger>
-              <TabsTrigger value="defaults">Defaults</TabsTrigger>
+              {/* <TabsTrigger value="defaults">Defaults</TabsTrigger> */}
             </TabsList>
 
             <TabsContent className="mt-4 space-y-4" value="main">

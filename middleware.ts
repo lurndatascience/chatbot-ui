@@ -25,7 +25,7 @@ export async function middleware(request: NextRequest) {
       if (!homeWorkspace) {
         throw new Error(error?.message)
       }
-
+      console.log("homeWorkspace", homeWorkspace,request.url )
       return NextResponse.redirect(
         new URL(`/${homeWorkspace.id}/chat`, request.url)
       )

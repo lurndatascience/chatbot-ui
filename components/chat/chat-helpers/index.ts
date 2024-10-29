@@ -55,9 +55,10 @@ export const handleRetrieval = async (
   userInput: string,
   newMessageFiles: ChatFile[],
   chatFiles: ChatFile[],
-  embeddingsProvider: "openai" | "local",
+  embeddingsProvider: "openai",
   sourceCount: number
 ) => {
+  console.log("handleRetrieval", { userInput, newMessageFiles, chatFiles })
   const response = await fetch("/api/retrieval/retrieve", {
     method: "POST",
     body: JSON.stringify({
@@ -208,15 +209,20 @@ export const handleHostedChat = async (
 
   let draftMessages = await buildFinalMessages(payload, profile, chatImages)
 
-  let formattedMessages : any[] = []
+  let formattedMessages: any[] = []
   if (provider === "google") {
-    formattedMessages = await adaptMessagesForGoogleGemini(payload, draftMessages)
+    formattedMessages = await adaptMessagesForGoogleGemini(
+      payload,
+      draftMessages
+    )
   } else {
     formattedMessages = draftMessages
   }
 
   const apiEndpoint =
     provider === "custom" ? "/api/chat/custom" : `/api/chat/${provider}`
+
+  console.log("fetching from url ", apiEndpoint, formattedMessages, provider)
 
   const requestBody = {
     chatSettings: payload.chatSettings,
@@ -254,6 +260,7 @@ export const fetchChatResponse = async (
   setIsGenerating: React.Dispatch<React.SetStateAction<boolean>>,
   setChatMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>
 ) => {
+  console.log("fetching from url ", url, body, isHosted)
   const response = await fetch(url, {
     method: "POST",
     body: JSON.stringify(body),
@@ -289,6 +296,8 @@ export const processResponse = async (
 ) => {
   let fullText = ""
   let contentToAdd = ""
+
+  console.log("fetching from index ", response, lastChatMessage, isHosted)
 
   if (response.body) {
     await consumeReadableStream(

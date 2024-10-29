@@ -18,7 +18,7 @@ create table file_items (
   -- REQUIRED
   content TEXT NOT NULL,
   local_embedding vector(384), -- 384 works for local w/ Xenova/all-MiniLM-L6-v2
-  openai_embedding vector(1536), -- 1536 for OpenAI
+  openai_embedding vector(3072), -- 3072 for OpenAI
   tokens INT NOT NULL
 );
 
@@ -87,7 +87,7 @@ end;
 $$;
 
 create function match_file_items_openai (
-  query_embedding vector(1536),
+  query_embedding vector(3072),
   match_count int DEFAULT null,
   file_ids UUID[] DEFAULT null
 ) returns table (
