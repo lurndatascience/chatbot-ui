@@ -1,10 +1,10 @@
 import { getServerProfile } from "@/lib/server/server-chat-helpers"
 import { ChatSettings } from "@/types"
-import { StreamingTextResponse } from "ai"
 import { ServerRuntime } from "next"
 import { createClient } from "@/lib/supabase/middleware"
-import { NextRequest } from "next/server"
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
+import { OpenAIStream } from "../../../utils/server"
+import { StreamingTextResponse } from "ai"
 
 export const runtime: ServerRuntime = "edge"
 
@@ -51,11 +51,10 @@ export async function POST(request: NextRequest) {
     if (!response.ok) {
       throw new Error("Network response was not ok")
     }
-
-    const responseData = await response.json() // Parse the JSON response
-    console.log("Success:", responseData)
-    const output = responseData.res
-    return new NextResponse(output, { status: 200 }) //new StreamingTextResponse(responseData)
+    const stream = await OpenAIStream(response)
+    console.log("stream", stream)
+    // const output = responseData.res
+    return new StreamingTextResponse(stream)
   } catch (error) {
     console.error("Error:", error)
   }
