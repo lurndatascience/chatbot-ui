@@ -3,8 +3,8 @@ import { ChatSettings } from "@/types"
 import { StreamingTextResponse } from "ai"
 import { ServerRuntime } from "next"
 import { createClient } from "@/lib/supabase/middleware"
-import { NextRequest } from "next/server"
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
+import { OpenAIStream } from "../../../../utils/server"
 
 export const runtime: ServerRuntime = "edge"
 
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     messages: any[]
   }
 
-  const { supabase, response } = createClient(request)
+  const { supabase } = createClient(request)
 
   const session = await supabase.auth.getSession()
   const { data: homeWorkspace, error } = await supabase
@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
   if (!homeWorkspace) {
     throw new Error(error?.message)
   }
+
   console.log("homeWorkspace", homeWorkspace, homeWorkspace.id)
 
   console.log("chat_completions", {
@@ -35,7 +36,9 @@ export async function POST(request: NextRequest) {
     messages,
     homeWorkspaceId: homeWorkspace.id
   })
+
   const profile = await getServerProfile()
+
   try {
     const response = await fetch(
       `${process.env.BACKEND_URL}/chat_completions`,
@@ -44,7 +47,7 @@ export async function POST(request: NextRequest) {
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ chatSettings, messages, homeWorkspace }) // Convert the data to JSON format
+        body: JSON.stringify({ chatSettings, messages, homeWorkspace })
       }
     )
 
@@ -52,11 +55,16 @@ export async function POST(request: NextRequest) {
       throw new Error("Network response was not ok")
     }
 
-    const responseData = await response.json() // Parse the JSON response
-    console.log("Success:", responseData)
-    const output = responseData.res
-    return new NextResponse(output, { status: 200 }) //new StreamingTextResponse(responseData)
+    // Use OpenAIStream to parse the response and create a readable stream
+    const stream = await OpenAIStream(response)
+    // console.log("Streaming Success", stream);
+    if (response.body === null) {
+      throw new Error("Response body is null")
+    }
+
+    return new StreamingTextResponse(stream)
   } catch (error) {
     console.error("Error:", error)
+    return NextResponse.error()
   }
 }

@@ -307,6 +307,7 @@ export const processResponse = async (
         setToolInUse("none")
 
         try {
+          console.log("Chunks  ", chunk)
           contentToAdd = isHosted
             ? chunk
             : // Ollama's streaming endpoint returns new-line separated JSON
@@ -316,10 +317,7 @@ export const processResponse = async (
               chunk
                 .trimEnd()
                 .split("\n")
-                .reduce(
-                  (acc, line) => acc + JSON.parse(line).message.content,
-                  ""
-                )
+                .reduce((acc, line) => acc + line, "")
           fullText += contentToAdd
         } catch (error) {
           console.error("Error parsing JSON:", error)
