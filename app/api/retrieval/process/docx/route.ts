@@ -47,20 +47,11 @@ export async function POST(req: Request) {
     let embeddings: any = []
     let openai
 
-    // Get Azure AD Token
-    const credential = new DefaultAzureCredential()
-    const tokenResponse = await credential.getToken(
-      "https://cognitiveservices.azure.com/.default"
-    )
-
     if (profile.use_azure_openai) {
       openai = new OpenAI({
-        apiKey: profile.azure_openai_api_key || "", // Keep for fallback if needed
+        apiKey: profile.azure_openai_api_key || "",
         baseURL: `${profile.azure_openai_endpoint}/openai/deployments/${profile.azure_openai_embeddings_id}`,
-        defaultQuery: { "api-version": "2023-12-01-preview" },
-        defaultHeaders: {
-          Authorization: `Bearer ${tokenResponse.token}` // Use the Azure AD token
-        }
+        defaultQuery: { "api-version": "2023-12-01-preview" }
       })
     } else {
       openai = new OpenAI({
@@ -84,7 +75,7 @@ export async function POST(req: Request) {
       content: chunk.content,
       tokens: chunk.tokens,
       openai_embedding: embeddings[index] || null,
-      local_embedding: null // Removed since local embedding is no longer used
+      local_embedding: null
     }))
 
     await supabaseAdmin.from("file_items").upsert(file_items)

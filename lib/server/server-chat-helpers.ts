@@ -57,7 +57,6 @@ function addApiKeysToProfile(profile: Tables<"profiles">) {
     [VALID_ENV_KEYS.AZURE_EMBEDDINGS_NAME]: "azure_openai_embeddings_id"
   }
 
-  profile.use_flexibot = true
   return profile
 }
 

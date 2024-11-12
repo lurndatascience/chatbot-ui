@@ -10,7 +10,6 @@ import { Database } from "@/supabase/types"
 import { FileItemChunk } from "@/types"
 import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
-import { DefaultAzureCredential } from "@azure/identity"
 import axios from "axios"
 
 export async function POST(req: Request) {
@@ -21,6 +20,7 @@ export async function POST(req: Request) {
     )
 
     const profile = await getServerProfile()
+
     const formData = await req.formData()
 
     const file_id = formData.get("file_id") as string
@@ -32,13 +32,19 @@ export async function POST(req: Request) {
       .eq("id", file_id)
       .single()
 
-    if (metadataError)
+    if (metadataError) {
       throw new Error(
         `Failed to retrieve file metadata: ${metadataError.message}`
       )
-    if (!fileMetadata) throw new Error("File not found")
-    if (fileMetadata.user_id !== profile.user_id)
+    }
+
+    if (!fileMetadata) {
+      throw new Error("File not found")
+    }
+
+    if (fileMetadata.user_id !== profile.user_id) {
       throw new Error("Unauthorized")
+    }
 
     const { data: file, error: fileError } = await supabaseAdmin.storage
       .from("files")
@@ -52,6 +58,7 @@ export async function POST(req: Request) {
     const fileExtension = fileMetadata.name.split(".").pop()?.toLowerCase()
 
     let chunks: FileItemChunk[] = []
+
     switch (fileExtension) {
       case "csv":
         chunks = await processCSV(blob)
@@ -69,82 +76,60 @@ export async function POST(req: Request) {
         chunks = await processTxt(blob)
         break
       default:
-        return NextResponse.json(
-          { message: "Unsupported file type" },
-          { status: 400 }
-        )
+        return new NextResponse("Unsupported file type", { status: 400 })
     }
 
-    const credential = new DefaultAzureCredential()
-    const token = await credential.getToken(
-      "https://cognitiveservices.azure.com/.default"
-    )
+    let embeddings: any = []
 
-    const embeddingConfig = {
-      azureDeployment: "text-embedding-ada-002",
-      model: "text-embedding-ada-002",
-      azureEndpoint: "http://localhost",
-      apiVersion: "2023-05-15",
-      azureAdToken: token.token
-    }
+    console.log("Chunks", chunks)
+    console.log("embeddingsProvider", embeddingsProvider)
+    console.log("AZURE_API_KEY", process.env.AZURE_API_KEY)
+    console.log("AZURE_ENDPOINT", process.env.AZURE_ENDPOINT)
 
-    let embeddings = []
     if (embeddingsProvider === "openai") {
-      try {
-        const response = await axios.post(
-          `${embeddingConfig.azureEndpoint}/openai/deployments/${embeddingConfig.azureDeployment}/embeddings?api-version=${embeddingConfig.apiVersion}`,
-          {
-            model: embeddingConfig.model,
-            input: chunks.map(chunk => chunk.content)
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${embeddingConfig.azureAdToken}`,
-              "api-version": embeddingConfig.apiVersion
-            }
-          }
-        )
+      const endpoint = `${process.env.AZURE_ENDPOINT}openai/deployments/text-embedding-ada-002/embeddings?api-version=2023-05-15`
 
-        // Extract only the 'embedding' array from each item in response data
-        embeddings = response.data?.data.map(item => item.embedding) || []
-        console.log("Extracted embeddings", embeddings)
-      } catch (error) {
-        console.error("Error fetching Azure OpenAI embeddings:", error)
-        throw new Error("Failed to retrieve embeddings")
-      }
+      const response = await axios.post(
+        endpoint,
+        {
+          input: chunks.map(chunk => chunk.content)
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "api-key": `${process.env.AZURE_ENDPOINT}`
+          }
+        }
+      )
+
+      embeddings = response.data.data.map((item: any) => item.embedding)
+      console.log("Embeddings:", embeddings)
     }
 
-    const fileItems = chunks.map((chunk, index) => ({
+    const file_items = chunks.map((chunk, index) => ({
       file_id,
       user_id: profile.user_id,
       content: chunk.content,
       tokens: chunk.tokens,
-      openai_embedding:
-        embeddingsProvider === "openai" ? embeddings[index] || null : null
+      openai_embedding: embeddings[index] || null
     }))
-    console.log("fileItems", fileItems)
 
-    const { data, error } = await supabaseAdmin
-      .from("file_items")
-      .upsert(fileItems)
-    if (error) {
-      console.error("Error upserting data:", error)
-      throw new Error("Failed to upsert data into file_items table")
-    } else {
-      console.log("Data upserted successfully:", data)
+    await supabaseAdmin.from("file_items").upsert(file_items)
 
-      const totalTokens = fileItems.reduce((acc, item) => acc + item.tokens, 0)
-      await supabaseAdmin
-        .from("files")
-        .update({ tokens: totalTokens })
-        .eq("id", file_id)
+    const totalTokens = file_items.reduce((acc, item) => acc + item.tokens, 0)
 
-      return NextResponse.json({ message: "Embed Successful" }, { status: 200 })
-    }
+    await supabaseAdmin
+      .from("files")
+      .update({ tokens: totalTokens })
+      .eq("id", file_id)
+
+    return new NextResponse("Embed Successful", { status: 200 })
   } catch (error: any) {
-    console.error(`Error in retrieval/process: ${error.stack}`)
-    const errorMessage = error.message || "An unexpected error occurred"
+    console.log(`Error in retrieval/process: ${error.stack}`)
+    const errorMessage = error?.message || "An unexpected error occurred"
     const errorCode = error.status || 500
-    return NextResponse.json({ message: errorMessage }, { status: errorCode })
+    return new Response(JSON.stringify({ message: errorMessage }), {
+      status: errorCode
+    })
   }
 }
